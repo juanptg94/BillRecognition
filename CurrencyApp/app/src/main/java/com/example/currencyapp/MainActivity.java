@@ -23,11 +23,13 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.*;
 
 import java.nio.charset.CoderResult;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -36,7 +38,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     CameraBridgeViewBase cameraBridgeViewBase;
     BaseLoaderCallback baseLoaderCallback;
     int counter=0;
-
+    TTSManager ttsManager= null;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -50,10 +52,14 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         cameraBridgeViewBase.setVisibility(SurfaceView.VISIBLE);
         cameraBridgeViewBase.setCvCameraViewListener(this);
 
+        ttsManager=new TTSManager();
+        ttsManager.init(this);
         baseLoaderCallback= new BaseLoaderCallback(this) {
             @Override
             public void onManagerConnected(int status) {
                 super.onManagerConnected(status);
+                ttsManager=new TTSManager();
+                ttsManager.init(getApplicationContext());
                 Log.d("Camera conex","Entre al switch");
                 switch (status){
                     case BaseLoaderCallback.SUCCESS:
@@ -91,7 +97,9 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         Imgproc.cvtColor(frame, grayframe, Imgproc.COLOR_RGB2GRAY);
         Imgproc.equalizeHist(grayframe, grayframe);
         Mat maskinput = new Mat();
-        Imgproc.threshold(grayframe, maskinput, 0, 255, Imgproc.THRESH_OTSU | Imgproc.THRESH_BINARY);
+        Imgproc.threshold(grayframe, maskinput, 0, 255, Imgproc.THRESH_OTSU + Imgproc.THRESH_BINARY);
+        Imgproc.dilate(maskinput,maskinput, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(4, 4)));
+        //mgproc.erode(maskinput,maskinput, Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2, 2)));
 
 
         //cuando se necesita enmascarar una imagen. CODIGO
@@ -109,85 +117,131 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
         Core.bitwise_and(frame, maskinput, maskinput);
         //Scalar medias= Core.mean(maskinput);
-        List<Mat> channels= new ArrayList<>();
-        Core.split(maskinput,channels);
-        Scalar sum= new Scalar(0,0,0);
-        for(int i=0;i<3;i++){
-            sum=Core.sumElems(maskinput);
+
+        Mat copyframe=frame.clone();
+        Imgproc.cvtColor(frame,frame,Imgproc.COLOR_RGBA2RGB);
+        Imgproc.cvtColor(frame,frame,Imgproc.COLOR_RGB2HSV);
+        List<Mat> channels=new ArrayList<>();
+        Core.split(frame,channels);
+
+        Mat red, blue, green;
+        red=new Mat();
+        blue=new Mat();
+        green=new Mat();
+
+        Core.inRange(channels.get(0), new Scalar(0), new Scalar(30), red); // red
+        Core.inRange(channels.get(0), new Scalar(30), new Scalar(90), green); // red
+        Core.inRange(channels.get(0), new Scalar(90), new Scalar(150), blue); // red
+// ... do the same for blue, green, etc only changing the Scalar values
+
+        double image_size = frame.cols()*frame.rows();
+        double red_percent = (Core.countNonZero(red)/image_size);
+        double green_percent = (Core.countNonZero(green)/image_size);
+        double blue_percent = (Core.countNonZero(blue)/image_size);
+        DecimalFormat df2 = new DecimalFormat("#.##");
+        String reds=df2.format(red_percent).toString();
+        String greens=df2.format(green_percent).toString();
+        String blues=df2.format(blue_percent).toString();
+
+
+        Imgproc.putText(copyframe,"Mean: R:"+ reds+", G:"+greens+", B:"+blues,new Point(50,30),3,0.5,new Scalar(255,0,0),2);
+        float error=0.04f; //valor de error
+        float fred=Float.valueOf(reds);
+        float fgreen=Float.valueOf(greens);
+        float fblue=Float.valueOf(blues);
+        Log.d("vals","VALORRR: "+Float.toString(fred));
+        //BILLETE DE 10.000
+        if(fred>=0.34-error && fred <=0.34+error && fgreen>=0.16-error && fgreen <=0.16+error && fblue>=0.23-error && fblue <=0.23+error ){//billete de 1000 parte frontal.rgb=0.30,0.11,0.24
+
+            Imgproc.putText(copyframe,"Billete de 10000",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de diez mil");
+
+        }
+        else if(fred>=0.38-error && fred <=0.38+error && fgreen>=0.23-error && fgreen <=0.23+error && fblue>=0.28-error && fblue <=0.28+error){//billete de 1000 parte trasera.rgb=0.32,0.18,0.34
+            Imgproc.putText(copyframe,"Billete de 10000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de diez mil");
+
+
+        }
+        //BILLETE DE 1.000
+        else if(fred>=0.46 -error && fred <=0.46 +error && fgreen>=0.16-error && fgreen <=0.16+error && fblue>=0.36-error && fblue <=0.36+error ){//billete de 1000 parte frontal.rgb=0.30,0.11,0.24
+
+            Imgproc.putText(copyframe,"Billete de 1000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de mil ");
+
+        }
+        else if(fred>=0.40-error && fred <=0.40+error && fgreen>=0.28-error && fgreen <=0.28+error && fblue>=0.31-error && fblue <=0.31+error){//billete de 1000 parte trasera.rgb=0.32,0.18,0.34
+            Imgproc.putText(copyframe,"Billete de 1000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de mil ");
+
+
+        }
+        //BILLETE DE 2.000
+        else if(fred>=0.48-error && fred <=0.48+error && fgreen>=0.16-error && fgreen <=0.16+error && fblue>=0.30-error && fblue <=0.30+error ){//billete de 1000 parte frontal.rgb=0.30,0.11,0.24
+
+            Imgproc.putText(copyframe,"Billete de 2000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de dos mil ");
+
+        }
+        else if(fred>=0.35-error && fred <=0.35+error && fgreen>=0.20-error && fgreen <=0.20+error && fblue>=0.36-error && fblue <=0.36+error){//billete de 1000 parte trasera.rgb=0.32,0.18,0.34
+            Imgproc.putText(copyframe,"Billete de 2000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de dos mil ");
+
+
         }
 
-        double totalsum=sum.val[0]+sum.val[1]+sum.val[2];
-        totalsum= (float) totalsum;
-        float perred= (float) (sum.val[0]/totalsum * 100);
-        float pergreen=(float) (sum.val[1]/totalsum * 100);
-        float perblue=(float)(sum.val[2]/totalsum * 100);
+        //BILLETE DE 5.000
+        else if(fred>=0.46-error && fred <=0.46+error && fgreen>=0.20-error && fgreen <=0.20+error && fblue>=0.27-error && fblue <=0.27+error ){//billete de 1000 parte frontal.rgb=0.30,0.11,0.24
+
+            Imgproc.putText(copyframe,"Billete de 5000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de cinco mil ");
+
+        }
+        else if(fred>=0.37-error && fred <=0.37+error && fgreen>=0.23-error && fgreen <=0.23+error && fblue>=0.40-error && fblue <=0.40+error){//billete de 1000 parte trasera.rgb=0.32,0.18,0.34
+            Imgproc.putText(copyframe,"Billete de 5000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de cinco mil ");
+
+
+
+        }
+        //BILLETE DE 20.000
+        else if(fred>=0.31-error && fred <=0.31+error && fgreen>=0.27-error && fgreen <=0.27+error && fblue>=0.50-error && fblue <=0.50+error ){//billete de 1000 parte frontal.rgb=0.30,0.11,0.24
+
+            Imgproc.putText(copyframe,"Billete de 20000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de veinte mil ");
+
+        }
+        else if(fred>=0.34-error && fred <=0.34+error && fgreen>=0.27-error && fgreen <=0.27+error && fblue>=0.34-error && fblue <=0.34+error){//billete de 1000 parte trasera.rgb=0.32,0.18,0.34
+            Imgproc.putText(copyframe,"Billete de 20000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de veinte mil ");
 
 
 
 
-        /*Scalar sums=new Scalar(0,0,0);
-        sums=Core.sumElems(maskinput);
-        double totalsum=sums.val[0]+sums.val[1]+sums.val[2];
+        }
+        //BILLETE DE 50.000
+        else if(fred>=0.34-error && fred <=0.34+error && fgreen>=0.26-error && fgreen <=0.26+error && fblue>=0.30-error && fblue <=0.30+error ){//billete de 1000 parte frontal.rgb=0.30,0.11,0.24
 
-        double perred=sums.val[0]/totalsum * 100;
-        double pergreen=sums.val[1]/totalsum * 100;
-        double perblue=sums.val[2]/totalsum * 100;*/
+            Imgproc.putText(copyframe,"Billete de 50000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de cincuenta mil ");
+
+        }
+        else if(fred>=0.30-error && fred <=0.30+error && fgreen>=0.22-error && fgreen <=0.22+error && fblue>=0.43-error && fblue <=0.43+error){//billete de 1000 parte trasera.rgb=0.32,0.18,0.34
+            Imgproc.putText(copyframe,"Billete de 50000 ",new Point(50,330),3,0.5,new Scalar(0,255,0),2);
+            ttsManager.initQueue("Billete de cincuenta mil ");
 
 
-        /*int color_red_counter = 0;
-        int color_green_counter = 0;
-        int color_blue_counter=0;
 
-
-        for (int i=0; i<maskinput.rows(); i++)
-        {
-
-            for (int j=0; j<maskinput.cols(); j++)
-            {
-                //Log.d("dimen","numfil "+maskinput.rows()+",numcol "+maskinput.cols());
-                double[] hsv = maskinput.get(i,j);
-
-                for (int k = 0; k < 3; k++) //Runs for the available number of channels
-                {
-                    Log.d("hsv","valor de get"+Integer.toString(k)+": "+ hsv[k]);
-                }
-                if(hsv[0]>0 && hsv[0]<30 ||hsv[0]>150 && hsv[0]<180    )//red
-                    color_red_counter++;
-
-                if(hsv[0]>=30 && hsv[0]<90 )//green
-                    color_green_counter++;
-
-                if(hsv[0]>=90 && hsv[0]<150 )//blue
-                    color_blue_counter++;
-
-            }
-        }*/
-        //Log.d("hsv","valores"+Integer.toString(color_red_counter)+","+Integer.toString(color_green_counter)+","+Integer.toString(color_blue_counter));
-        /*double percentagered = 0;
-        double percentagegreen = 0;
-        double percentageblue = 0;
-        if(color_red_counter+color_green_counter+color_blue_counter!=0){
-             percentagered = color_red_counter/(color_red_counter+color_green_counter+color_blue_counter)*100;
-             percentagegreen = color_green_counter/(color_red_counter+color_green_counter+color_blue_counter)*100;
-             percentageblue = color_blue_counter/(color_red_counter+color_green_counter+color_blue_counter)*100;
         }
 
 
 
 
-        */
-        Imgproc.putText(maskinput,"Mean: R: "+Double.toString(perred)+", G: "+Double.toString(pergreen)+", B: "+Double.toString(perblue),new Point(50,30),3,1,new Scalar(255,0,0),2);
 
 
 
 
-
-
-
-        frame=maskinput;
-
-
-        return frame;
+        return copyframe;
     }
 
     @Override
@@ -215,5 +269,6 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         if(cameraBridgeViewBase!=null){
             cameraBridgeViewBase.disableView();
         }
+        ttsManager.shutDown();
     }
 }
