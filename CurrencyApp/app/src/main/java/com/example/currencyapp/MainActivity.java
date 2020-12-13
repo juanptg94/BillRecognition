@@ -91,6 +91,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+
         Mat frame = inputFrame.rgba();
         Imgproc.cvtColor(frame, frame, Imgproc.COLOR_RGBA2RGB);
         Mat grayframe = new Mat();
@@ -235,12 +236,23 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         }
 
 
+        grayframe.release();
+        maskinput.release();
+        red.release();
+        green.release();
+        blue.release();
+        for(int i=0;i<channels.size();i++){
+            channels.get(i).release();
 
+
+        }
+        channels.clear();
 
 
 
 
         System.gc();
+
         return copyframe;
     }
 
