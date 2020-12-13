@@ -240,7 +240,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
 
 
-
+        System.gc();
         return copyframe;
     }
 
